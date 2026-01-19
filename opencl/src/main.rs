@@ -28,7 +28,7 @@ const SUFFIX: &[u8] = b".dcx";
 const TARGET: Hash = 0xd7255946;
 
 const PAR_LEN: usize = 4; // Assign a gpu thread to each prefix of this length
-const SEQ_LEN: usize = 4; // Search for collisions of this many extra chars
+const SEQ_LEN: usize = 5; // Search for collisions of this many extra chars
 
 const BLOCK_SIZE: usize = 512; // tune this for your GPU
 const TOTAL_LEN: usize = PAR_LEN + SEQ_LEN;

@@ -13,8 +13,8 @@
 
 typedef HASH_T hash_t;
 
-const uchar ALPHABET[] = ".0123456789_abcdefghijklmnopqrstuvwxyz";
-const size_t ALPHABET_SIZE = sizeof(ALPHABET) - 1;
+constant uchar ALPHABET[] = ".0123456789_abcdefghijklmnopqrstuvwxyz";
+#define ALPHABET_SIZE (sizeof(ALPHABET) - 1)
 
 bool in_alphabet(hash_t solution) {
     if (solution > 'z') return false;
