@@ -1,0 +1,8 @@
+[package]
+name = "fs-hardblast-opencl"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+opencl3 = "0.12"
+cl3 = "0.13"

@@ -1,7 +1,14 @@
-[package]
-name = "fs-hardblast"
+[workspace]
+members = ["opencl"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+
+[package]
+name = "fs-hardblast"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
 rayon = "1.11.0"
