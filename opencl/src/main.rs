@@ -29,8 +29,9 @@ const TARGET: Hash = 0xd7255946;
 
 const PAR_LEN: usize = 4; // Assign a gpu thread to each prefix of this length
 const SEQ_LEN: usize = 5; // Search for collisions of this many extra chars
+const VEC_LEN: usize = 8; // SIMD vector size in kernel, tune for your GPU
 
-const BLOCK_SIZE: usize = 512; // tune this for your GPU
+const BLOCK_SIZE: usize = 256; // tune this for your GPU
 const TOTAL_LEN: usize = PAR_LEN + SEQ_LEN;
 
 fn main() -> Result<(), Err> {
@@ -88,14 +89,14 @@ fn main() -> Result<(), Err> {
     let program = Program::create_and_build_from_source(
         &context,
         include_str!("kernel.cl"),
-        &format!("-D PAR_LEN={PAR_LEN} -D SEQ_LEN={SEQ_LEN} -D HASH_T={hash_type} -Werror"),
+        &format!("-D PAR_LEN={PAR_LEN} -D SEQ_LEN={SEQ_LEN} -D VEC_LEN={VEC_LEN} -D HASH_T={hash_type} -Werror"),
     )
     .expect("kernel failed to build");
 
     let kernel = Kernel::create(&program, "find_collisions")?;
 
     let work_items = ALPHABET.len().pow(PAR_LEN as u32);
-    let work_size = work_items.next_multiple_of(BLOCK_SIZE);
+    let work_size = work_items.div_ceil(VEC_LEN).next_multiple_of(BLOCK_SIZE);
 
     let expected_collisions =
         (ALPHABET.len() as f64).powi(TOTAL_LEN as i32) / 256f64.powi(size_of::<Hash>() as i32);
@@ -124,7 +125,7 @@ fn main() -> Result<(), Err> {
 
     let kernel_event = unsafe {
         ExecuteKernel::new(&kernel)
-            .set_arg(&(work_items as u32))
+            .set_arg(&(work_items as u64))
             .set_arg(&prefix_hash)
             .set_arg(&suffix.target_shift)
             .set_arg(&results_dev)
@@ -156,14 +157,17 @@ fn main() -> Result<(), Err> {
     };
 
     // print matches
+    let mut full_collision = Vec::new();
     for res in results.chunks_exact(TOTAL_LEN) {
         let len = res.iter().position(|&b| b == 0).unwrap_or(res.len());
-        println!(
-            "{}{}{}",
-            String::from_utf8_lossy(PREFIX),
-            String::from_utf8_lossy(&res[..len]),
-            String::from_utf8_lossy(SUFFIX)
-        );
+
+        full_collision.clear();
+        full_collision.extend_from_slice(PREFIX);
+        full_collision.extend_from_slice(&res[..len]);
+        full_collision.extend_from_slice(SUFFIX);
+
+        println!("{}", String::from_utf8_lossy(&full_collision));
+        assert_eq!(fnv_hash(&full_collision), TARGET);
     }
 
     println!("\nfound {} solutions in {:?}", results_count, kernel_time);
