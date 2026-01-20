@@ -1,6 +1,3 @@
-#define CAT(a, b) a ## b
-#define XCAT(a,b) CAT(a,b)
-
 #ifndef PAR_LEN
 #define PAR_LEN 4 // number of chars the work is split over
 #endif
@@ -16,28 +13,32 @@
 #ifndef VEC_LEN
 #define VEC_LEN 8 // SIMD vector size
 #endif
+#ifndef ALPHABET_LIT
+#define ALPHABET_LIT ".0123456789_abcdefghijklmnopqrstuvwxyz"
+#define ALPHABET_MAX 'z'
+#define ALPHABET_MASK_LO 0x3ff400000000000lu
+#define ALPHABET_MASK_HI 0x7fffffe80000000lu
+#endif
 
+#define CAT(a, b) a ## b
+#define XCAT(a,b) CAT(a,b)
 #define VEC(a) XCAT(a, VEC_LEN)
 #define SEARCH_DEPTH (SEQ_LEN - 1)
 
 typedef HASH_T hash_t;
 typedef VEC(HASH_T) hashvec_t;
 
-constant uchar ALPHABET[] = ".0123456789_abcdefghijklmnopqrstuvwxyz";
+constant uchar ALPHABET[] = ALPHABET_LIT;
 #define ALPHABET_SIZE (sizeof(ALPHABET) - 1)
 
 bool in_alphabet_prefilter(hashvec_t solutions) {
-    return any(solutions <= 'z');
+    return any(solutions <= ALPHABET_MAX);
 }
 
 bool in_alphabet(hash_t solution) {
-    if (solution > 'z') return false;
-    if (solution < '.') return false;
-    if (solution >= 'a') return true;
-    if (solution > '_') return false;
-    if (solution == '_') return true;
-    if (solution > '9') return false;
-    return solution != '/'; // only char between . and 0
+    if (solution > ALPHABET_MAX) return false;
+    ulong mask = solution > 63 ? ALPHABET_MASK_HI : ALPHABET_MASK_LO;
+    return (mask >> solution) & 1;
 }
 
 typedef struct {

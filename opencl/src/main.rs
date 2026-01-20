@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, ffi::c_void, process::exit, ptr, time::Instant};
+use std::{cmp::Reverse, ffi::c_void, fmt::Write, process::exit, ptr, time::Instant};
 
 use cl3::{
     ext::{
@@ -20,7 +20,7 @@ use opencl3::{
 
 type Hash = u32;
 
-const FNV_PRIME: Hash = 37;
+const FNV_PRIME: Hash = 37; // 133 for u64 hashes!
 const ALPHABET: &[u8] = b".0123456789_abcdefghijklmnopqrstuvwxyz";
 
 const PREFIX: &[u8] = b"/other/";
@@ -36,6 +36,8 @@ const TOTAL_LEN: usize = PAR_LEN + SEQ_LEN;
 
 fn main() -> Result<(), Err> {
     let suffix = PrecomputedSuffix::new(SUFFIX, TARGET);
+    let alphabet = ProcessedAlphabet::new(ALPHABET);
+
     let prefix_hash = fnv_hash(PREFIX);
 
     let devices = get_all_devices(CL_DEVICE_TYPE_GPU)?;
@@ -94,18 +96,24 @@ fn main() -> Result<(), Err> {
             -D SEQ_LEN={SEQ_LEN} \
             -D VEC_LEN={VEC_LEN} \
             -D FNV_PRIME={FNV_PRIME} \
-            -D HASH_T={hash_type} -Werror"
+            -D HASH_T={hash_type} \
+            -D 'ALPHABET_LIT={}' \
+            -D ALPHABET_MAX={} \
+            -D ALPHABET_MASK_LO={}lu \
+            -D ALPHABET_MASK_HI={}lu \
+            -Werror",
+            alphabet.lit, alphabet.max, alphabet.mask_lo, alphabet.mask_hi
         ),
     )
     .expect("kernel failed to build");
 
     let kernel = Kernel::create(&program, "find_collisions")?;
 
-    let work_items = ALPHABET.len().pow(PAR_LEN as u32);
+    let work_items = alphabet.len.pow(PAR_LEN as u32);
     let work_size = work_items.div_ceil(VEC_LEN).next_multiple_of(BLOCK_SIZE);
 
     let expected_collisions =
-        (ALPHABET.len() as f64).powi(TOTAL_LEN as i32) / 256f64.powi(size_of::<Hash>() as i32);
+        (alphabet.len as f64).powi(TOTAL_LEN as i32) / 256f64.powi(size_of::<Hash>() as i32);
     let buf_len = (1.5 * expected_collisions) as usize + 100; // safety margin
     let buf_len_bytes = buf_len * TOTAL_LEN;
     if buf_len_bytes > u32::MAX as usize {
@@ -232,6 +240,41 @@ impl PrecomputedSuffix {
             hash,
             mult,
             target_shift,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ProcessedAlphabet {
+    len: usize,
+    lit: String,
+    max: u8,
+    mask_lo: u64,
+    mask_hi: u64,
+}
+
+impl ProcessedAlphabet {
+    pub fn new(alphabet: &[u8]) -> Self {
+        let max = *alphabet.iter().max().unwrap();
+        if max > 127 {
+            panic!("max alphabet char must be < 128");
+        }
+
+        let mut mask: u128 = 0;
+        let mut lit = "\"".to_owned();
+
+        for &b in alphabet {
+            mask |= 1u128 << b as u32;
+            write!(&mut lit, "\\x{b:02x}").unwrap();
+        }
+        lit.push('"');
+
+        Self {
+            len: alphabet.len(),
+            lit,
+            max,
+            mask_lo: (mask & u64::MAX as u128) as u64,
+            mask_hi: (mask >> 64) as u64,
         }
     }
 }
