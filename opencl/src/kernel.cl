@@ -10,13 +10,15 @@
 #ifndef HASH_T
 #define HASH_T uint // hash integer type
 #endif
+#ifndef FNV_PRIME
+#define FNV_PRIME 37
+#endif
 #ifndef VEC_LEN
 #define VEC_LEN 8 // SIMD vector size
 #endif
 
 #define VEC(a) XCAT(a, VEC_LEN)
 #define SEARCH_DEPTH (SEQ_LEN - 1)
-#define FNV_PRIME 37
 
 typedef HASH_T hash_t;
 typedef VEC(HASH_T) hashvec_t;

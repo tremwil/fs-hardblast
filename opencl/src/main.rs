@@ -89,7 +89,13 @@ fn main() -> Result<(), Err> {
     let program = Program::create_and_build_from_source(
         &context,
         include_str!("kernel.cl"),
-        &format!("-D PAR_LEN={PAR_LEN} -D SEQ_LEN={SEQ_LEN} -D VEC_LEN={VEC_LEN} -D HASH_T={hash_type} -Werror"),
+        &format!(
+            "-D PAR_LEN={PAR_LEN} \
+            -D SEQ_LEN={SEQ_LEN} \
+            -D VEC_LEN={VEC_LEN} \
+            -D FNV_PRIME={FNV_PRIME} \
+            -D HASH_T={hash_type} -Werror"
+        ),
     )
     .expect("kernel failed to build");
 
@@ -205,8 +211,8 @@ impl PrecomputedSuffix {
         const fn minv32(a: Hash) -> Hash {
             assert!(!a.is_multiple_of(2));
 
-            let mut x = 3u32.wrapping_mul(a) ^ 2;
-            let mut y = 1u32.wrapping_sub(a.wrapping_mul(x));
+            let mut x = (3 as Hash).wrapping_mul(a) ^ 2;
+            let mut y = (1 as Hash).wrapping_sub(a.wrapping_mul(x));
 
             x = x.wrapping_mul(y.wrapping_add(1));
             y = y.wrapping_mul(y);
@@ -219,7 +225,7 @@ impl PrecomputedSuffix {
         }
 
         let hash = fnv_hash(suffix);
-        let mult = FNV_PRIME.wrapping_pow(suffix.len() as Hash);
+        let mult = FNV_PRIME.wrapping_pow(suffix.len() as u32);
         let target_shift = target_hash.wrapping_sub(hash).wrapping_mul(minv32(mult));
 
         Self {
