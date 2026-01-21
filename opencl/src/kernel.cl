@@ -37,7 +37,7 @@ bool in_alphabet_prefilter(hashvec_t solutions) {
             max = ALPHABET[i];
         }
     }
-    return any(solutions < max + 1);
+    return any(solutions <= max);
 }
 
 bool in_alphabet(hash_t solution) {
