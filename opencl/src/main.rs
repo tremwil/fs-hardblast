@@ -161,18 +161,18 @@ fn main() -> Result<(), Err> {
             &[kernel_event.get()],
         )?
     };
-    results_count = results_count.min(buf_len as u32);
+    let results_count = results_count.min(buf_len as u32) as usize;
     let kernel_time = pre_kernel.elapsed();
 
     // copy initialized portion of results buffer
-    let mut results = vec![0; results_count as usize * TOTAL_LEN];
+    let mut results = vec![0; results_count.max(1) * TOTAL_LEN];
     unsafe {
         queue.enqueue_read_buffer(&results_dev, CL_BLOCKING, 0, results.as_mut_slice(), &[])?
     };
 
     // print matches
     let mut full_collision = Vec::new();
-    for res in results.chunks_exact(TOTAL_LEN) {
+    for res in results[..results_count].chunks_exact(TOTAL_LEN) {
         let len = res.iter().position(|&b| b == 0).unwrap_or(res.len());
 
         full_collision.clear();
