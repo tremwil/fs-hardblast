@@ -25,7 +25,7 @@
 typedef HASH_T hash_t;
 typedef VEC(HASH_T) hashvec_t;
 
-constant uchar ALPHABET[] = { ALPHABET_LIT, 0 };
+constant uchar ALPHABET[] = ALPHABET_LIT;
 #define ALPHABET_SIZE (sizeof(ALPHABET) - 1)
 
 bool in_alphabet_prefilter(hashvec_t solutions) {

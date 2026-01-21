@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, ffi::c_void, process::exit, ptr, time::Instant};
+use std::{cmp::Reverse, ffi::c_void, fmt::Write, process::exit, ptr, time::Instant};
 
 use cl3::{
     ext::{
@@ -97,11 +97,10 @@ fn main() -> Result<(), Err> {
     } else {
         "ulong"
     };
-    let alphabet_lit = ALPHABET
-        .iter()
-        .map(|b| format!("0x{:02x}", b))
-        .collect::<Vec<_>>()
-        .join(",");
+    let alphabet_lit = ALPHABET.iter().fold(String::new(), |mut s, b| {
+        write!(&mut s, "\\x{b:02x}").unwrap();
+        s
+    });
 
     let program = Program::create_and_build_from_source(
         &context,
@@ -112,7 +111,7 @@ fn main() -> Result<(), Err> {
             -D VEC_LEN={VEC_LEN} \
             -D FNV_PRIME={FNV_PRIME} \
             -D HASH_T={hash_type} \
-            -D ALPHABET_LIT={alphabet_lit} \
+            -D 'ALPHABET_LIT=\"{alphabet_lit}\"' \
             -Werror",
         ),
     )
