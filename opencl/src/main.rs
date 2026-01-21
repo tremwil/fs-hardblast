@@ -36,7 +36,6 @@ const TOTAL_LEN: usize = PAR_LEN + SEQ_LEN;
 
 fn main() -> Result<(), Err> {
     let suffix = PrecomputedSuffix::new(SUFFIX, TARGET);
-    let alphabet = ProcessedAlphabet::new(ALPHABET);
 
     let prefix_hash = fnv_hash(PREFIX);
 
@@ -73,7 +72,17 @@ fn main() -> Result<(), Err> {
 
     println!("usable devices (OpenCL support >= 1.1):");
     for (i, &(dev, compute)) in usable.iter().enumerate() {
-        let name = get_device_info(dev, CL_DEVICE_NAME)?;
+        let name = match get_device_info(dev, CL_DEVICE_NAME) {
+            Ok(InfoType::VecUchar(data)) => {
+                // trim trailing nulls
+                if let Some(pos) = data.iter().position(|&b| b == 0) {
+                    String::from_utf8_lossy(&data[..pos]).to_string()
+                } else {
+                    String::from_utf8_lossy(&data).to_string()
+                }
+            }
+            _ => "<failed to get name>".to_string(),
+        };
         println!("{i}: {name}, effective compute {compute} MHz");
     }
 
@@ -88,6 +97,11 @@ fn main() -> Result<(), Err> {
     } else {
         "ulong"
     };
+    let alphabet_lit = ALPHABET.iter().fold(String::new(), |mut s, b| {
+        write!(&mut s, "\\x{b:02x}").unwrap();
+        s
+    });
+
     let program = Program::create_and_build_from_source(
         &context,
         include_str!("kernel.cl"),
@@ -97,23 +111,19 @@ fn main() -> Result<(), Err> {
             -D VEC_LEN={VEC_LEN} \
             -D FNV_PRIME={FNV_PRIME} \
             -D HASH_T={hash_type} \
-            -D 'ALPHABET_LIT={}' \
-            -D ALPHABET_MAX={} \
-            -D ALPHABET_MASK_LO={}lu \
-            -D ALPHABET_MASK_HI={}lu \
+            -D 'ALPHABET_LIT=\"{alphabet_lit}\"' \
             -Werror",
-            alphabet.lit, alphabet.max, alphabet.mask_lo, alphabet.mask_hi
         ),
     )
     .expect("kernel failed to build");
 
     let kernel = Kernel::create(&program, "find_collisions")?;
 
-    let work_items = alphabet.len.pow(PAR_LEN as u32);
+    let work_items = ALPHABET.len().pow(PAR_LEN as u32);
     let work_size = work_items.div_ceil(VEC_LEN).next_multiple_of(BLOCK_SIZE);
 
     let expected_collisions =
-        (alphabet.len as f64).powi(TOTAL_LEN as i32) / 256f64.powi(size_of::<Hash>() as i32);
+        (ALPHABET.len() as f64).powi(TOTAL_LEN as i32) / 256f64.powi(size_of::<Hash>() as i32);
     let buf_len = (1.5 * expected_collisions) as usize + 100; // safety margin
     let buf_len_bytes = buf_len * TOTAL_LEN;
     if buf_len_bytes > u32::MAX as usize {
@@ -240,41 +250,6 @@ impl PrecomputedSuffix {
             hash,
             mult,
             target_shift,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct ProcessedAlphabet {
-    len: usize,
-    lit: String,
-    max: u8,
-    mask_lo: u64,
-    mask_hi: u64,
-}
-
-impl ProcessedAlphabet {
-    pub fn new(alphabet: &[u8]) -> Self {
-        let max = *alphabet.iter().max().unwrap();
-        if max > 127 {
-            panic!("max alphabet char must be < 128");
-        }
-
-        let mut mask: u128 = 0;
-        let mut lit = "\"".to_owned();
-
-        for &b in alphabet {
-            mask |= 1u128 << b as u32;
-            write!(&mut lit, "\\x{b:02x}").unwrap();
-        }
-        lit.push('"');
-
-        Self {
-            len: alphabet.len(),
-            lit,
-            max,
-            mask_lo: (mask & u64::MAX as u128) as u64,
-            mask_hi: (mask >> 64) as u64,
         }
     }
 }
