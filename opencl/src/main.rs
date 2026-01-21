@@ -73,7 +73,17 @@ fn main() -> Result<(), Err> {
 
     println!("usable devices (OpenCL support >= 1.1):");
     for (i, &(dev, compute)) in usable.iter().enumerate() {
-        let name = get_device_info(dev, CL_DEVICE_NAME)?;
+        let name = match get_device_info(dev, CL_DEVICE_NAME) {
+            Ok(InfoType::VecUchar(data)) => {
+                // trim trailing nulls
+                if let Some(pos) = data.iter().position(|&b| b == 0) {
+                    String::from_utf8_lossy(&data[..pos]).to_string()
+                } else {
+                    String::from_utf8_lossy(&data).to_string()
+                }
+            }
+            _ => "<failed to get name>".to_string(),
+        };
         println!("{i}: {name}, effective compute {compute} MHz");
     }
 
