@@ -16,8 +16,6 @@
 #ifndef ALPHABET_LIT
 #define ALPHABET_LIT ".0123456789_abcdefghijklmnopqrstuvwxyz"
 #define ALPHABET_MAX 'z'
-#define ALPHABET_MASK_LO 0x3ff400000000000lu
-#define ALPHABET_MASK_HI 0x7fffffe80000000lu
 #endif
 
 #define CAT(a, b) a ## b
@@ -32,13 +30,29 @@ constant uchar ALPHABET[] = ALPHABET_LIT;
 #define ALPHABET_SIZE (sizeof(ALPHABET) - 1)
 
 bool in_alphabet_prefilter(hashvec_t solutions) {
-    return any(solutions <= ALPHABET_MAX);
+    return any(solutions < ALPHABET_MAX + 1);
 }
 
 bool in_alphabet(hash_t solution) {
     if (solution > ALPHABET_MAX) return false;
-    ulong mask = solution > 63 ? ALPHABET_MASK_HI : ALPHABET_MASK_LO;
-    return (mask >> solution) & 1;
+    ulong m0 = 0, m1 = 0, m2 = 0, m3 = 0;
+
+    #pragma unroll
+    for (int i = 0; i < ALPHABET_SIZE; i++) {
+        uchar c = ALPHABET[i];
+        if (c < 64)       m0 |= (1UL << c);
+        else if (c < 128) m1 |= (1UL << (c - 64));
+        else if (c < 192) m2 |= (1UL << (c - 128));
+        else              m3 |= (1UL << (c - 192));
+    }
+
+    ulong mask;
+    if (solution < 64)       mask = m0;
+    else if (solution < 128) mask = m1;
+    else if (solution < 192) mask = m2;
+    else                     mask = m3;
+
+    return (mask >> (solution & 63)) & 1;
 }
 
 typedef struct {
@@ -132,7 +146,7 @@ kernel void find_collisions(
         }
 
         if (depth < SEARCH_DEPTH - 1) {
-            base_hashes[++depth] = base_hash; 
+            base_hashes[++depth] = base_hash;
         }
     }
 }

@@ -99,10 +99,8 @@ fn main() -> Result<(), Err> {
             -D HASH_T={hash_type} \
             -D 'ALPHABET_LIT={}' \
             -D ALPHABET_MAX={} \
-            -D ALPHABET_MASK_LO={}lu \
-            -D ALPHABET_MASK_HI={}lu \
             -Werror",
-            alphabet.lit, alphabet.max, alphabet.mask_lo, alphabet.mask_hi
+            alphabet.lit, alphabet.max,
         ),
     )
     .expect("kernel failed to build");
@@ -249,22 +247,14 @@ struct ProcessedAlphabet {
     len: usize,
     lit: String,
     max: u8,
-    mask_lo: u64,
-    mask_hi: u64,
 }
 
 impl ProcessedAlphabet {
     pub fn new(alphabet: &[u8]) -> Self {
         let max = *alphabet.iter().max().unwrap();
-        if max > 127 {
-            panic!("max alphabet char must be < 128");
-        }
-
-        let mut mask: u128 = 0;
         let mut lit = "\"".to_owned();
 
         for &b in alphabet {
-            mask |= 1u128 << b as u32;
             write!(&mut lit, "\\x{b:02x}").unwrap();
         }
         lit.push('"');
@@ -273,8 +263,6 @@ impl ProcessedAlphabet {
             len: alphabet.len(),
             lit,
             max,
-            mask_lo: (mask & u64::MAX as u128) as u64,
-            mask_hi: (mask >> 64) as u64,
         }
     }
 }
