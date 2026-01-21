@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, ffi::c_void, fmt::Write, process::exit, ptr, time::Instant};
+use std::{cmp::Reverse, ffi::c_void, process::exit, ptr, time::Instant};
 
 use cl3::{
     ext::{
@@ -36,7 +36,6 @@ const TOTAL_LEN: usize = PAR_LEN + SEQ_LEN;
 
 fn main() -> Result<(), Err> {
     let suffix = PrecomputedSuffix::new(SUFFIX, TARGET);
-    let alphabet = ProcessedAlphabet::new(ALPHABET);
 
     let prefix_hash = fnv_hash(PREFIX);
 
@@ -98,6 +97,12 @@ fn main() -> Result<(), Err> {
     } else {
         "ulong"
     };
+    let alphabet_lit = ALPHABET
+        .iter()
+        .map(|b| format!("0x{:02x}", b))
+        .collect::<Vec<_>>()
+        .join(",");
+
     let program = Program::create_and_build_from_source(
         &context,
         include_str!("kernel.cl"),
@@ -107,21 +112,19 @@ fn main() -> Result<(), Err> {
             -D VEC_LEN={VEC_LEN} \
             -D FNV_PRIME={FNV_PRIME} \
             -D HASH_T={hash_type} \
-            -D 'ALPHABET_LIT={}' \
-            -D ALPHABET_MAX={} \
+            -D ALPHABET_LIT={alphabet_lit} \
             -Werror",
-            alphabet.lit, alphabet.max,
         ),
     )
     .expect("kernel failed to build");
 
     let kernel = Kernel::create(&program, "find_collisions")?;
 
-    let work_items = alphabet.len.pow(PAR_LEN as u32);
+    let work_items = ALPHABET.len().pow(PAR_LEN as u32);
     let work_size = work_items.div_ceil(VEC_LEN).next_multiple_of(BLOCK_SIZE);
 
     let expected_collisions =
-        (alphabet.len as f64).powi(TOTAL_LEN as i32) / 256f64.powi(size_of::<Hash>() as i32);
+        (ALPHABET.len() as f64).powi(TOTAL_LEN as i32) / 256f64.powi(size_of::<Hash>() as i32);
     let buf_len = (1.5 * expected_collisions) as usize + 100; // safety margin
     let buf_len_bytes = buf_len * TOTAL_LEN;
     if buf_len_bytes > u32::MAX as usize {
@@ -248,31 +251,6 @@ impl PrecomputedSuffix {
             hash,
             mult,
             target_shift,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct ProcessedAlphabet {
-    len: usize,
-    lit: String,
-    max: u8,
-}
-
-impl ProcessedAlphabet {
-    pub fn new(alphabet: &[u8]) -> Self {
-        let max = *alphabet.iter().max().unwrap();
-        let mut lit = "\"".to_owned();
-
-        for &b in alphabet {
-            write!(&mut lit, "\\x{b:02x}").unwrap();
-        }
-        lit.push('"');
-
-        Self {
-            len: alphabet.len(),
-            lit,
-            max,
         }
     }
 }

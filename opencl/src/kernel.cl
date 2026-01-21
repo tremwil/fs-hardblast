@@ -15,7 +15,6 @@
 #endif
 #ifndef ALPHABET_LIT
 #define ALPHABET_LIT ".0123456789_abcdefghijklmnopqrstuvwxyz"
-#define ALPHABET_MAX 'z'
 #endif
 
 #define CAT(a, b) a ## b
@@ -26,25 +25,36 @@
 typedef HASH_T hash_t;
 typedef VEC(HASH_T) hashvec_t;
 
-constant uchar ALPHABET[] = ALPHABET_LIT;
+constant uchar ALPHABET[] = { ALPHABET_LIT, 0 };
 #define ALPHABET_SIZE (sizeof(ALPHABET) - 1)
 
 bool in_alphabet_prefilter(hashvec_t solutions) {
-    return any(solutions < ALPHABET_MAX + 1);
+    // Compiler will unroll this loop and optimize into constant comparisons
+    uchar max = 0;
+    #pragma unroll
+    for (int i = 0; i < ALPHABET_SIZE; i++) {
+        if (ALPHABET[i] > max) {
+            max = ALPHABET[i];
+        }
+    }
+    return any(solutions < max + 1);
 }
 
 bool in_alphabet(hash_t solution) {
-    if (solution > ALPHABET_MAX) return false;
+    // Compiler will unroll this loop and optimize into bitmasks
     ulong m0 = 0, m1 = 0, m2 = 0, m3 = 0;
-
+    uchar max = 0;
     #pragma unroll
     for (int i = 0; i < ALPHABET_SIZE; i++) {
         uchar c = ALPHABET[i];
+        if (c > max)      max = c;
         if (c < 64)       m0 |= (1UL << c);
         else if (c < 128) m1 |= (1UL << (c - 64));
         else if (c < 192) m2 |= (1UL << (c - 128));
         else              m3 |= (1UL << (c - 192));
     }
+
+    if (solution > max) return false;
 
     ulong mask;
     if (solution < 64)       mask = m0;
@@ -52,7 +62,7 @@ bool in_alphabet(hash_t solution) {
     else if (solution < 192) mask = m2;
     else                     mask = m3;
 
-    return (mask >> (solution & 63)) & 1;
+    return (mask >> solution) & 1;
 }
 
 typedef struct {
